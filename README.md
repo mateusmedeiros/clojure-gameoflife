@@ -1,36 +1,6 @@
 # experimenting
 
-FIXME: description
-
-## Installation
-
-Download from http://example.com/FIXME.
-
-## Usage
-
-FIXME: explanation
-
-    $ java -jar experimenting-0.1.0-standalone.jar [args]
-
-## Options
-
-FIXME: listing of options this app accepts.
-
-## Examples
-
-...
-
-### Bugs
-
-...
-
-### Any Other Sections
-### That You Think
-### Might be Useful
+A very small game of life implementation I did for learning purposes. Probably not a very good clojure example code if that's what you're looking for. I think I'm still too rooted on my Java class-oriented ways, I ended up making namespaces as if they were java classes in my head. Still, I tried to do the clojure way the most I could, as after all, this was for learning purposes. It would be worth nothing if I didn't go through the ways I want to learn.
 
 ## License
-
-Copyright © 2015 FIXME
-
-Distributed under the Eclipse Public License either version 1.0 or (at
-your option) any later version.
+MIT License
