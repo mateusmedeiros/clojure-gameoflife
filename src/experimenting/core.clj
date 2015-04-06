@@ -1,56 +1,41 @@
-(ns experimenting.core (:gen-class)
-  (use experimenting.utils.collections)
-  (require [lanterna.terminal :as t]))
+(ns experimenting.core 
+  (:gen-class)
+  (:require [experimenting.utils :refer :all])
+  (:require [experimenting.config :refer :all])
+  (:require [experimenting.blacken :as t])
+  (:require [clojure.string :as s]))
 
-(def h 13)
-(def w 27)
-(def beginning [ 
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \█ \█ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \█ \█ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \█ \█ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \█ \█ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-[\_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_ \_]  
-])
-
-(def grid (atom beginning))
-
-(def console (t/get-terminal :swing)); :auto {:font (first (for [font (t/get-available-fonts)
-                             ;                   :when (-> font (.toLowerCase) (.contains "mono"))]
-                             ;               font)) } ))
-
-(defn set-on-grid [grid y x cell]
-  (assoc grid y (assoc (geth y grid) x cell)))
-
-(defn calculate-iteration-on-cell [previous y x cell]
-  (if (= cell \_) \█ \_))
+(def grid (agent (generate-grid h w beginning)))
+(def console (t/make-curses-like-term "Game of life" 40 144))
 
 (defn iterate-game [grid] 
-  (doseq [y (range 0 h)
-          x (range 0 w)
-          :let [cell (geth x (geth y @grid))]]
-    (swap! grid set-on-grid y x (calculate-iteration-on-cell @grid y x cell))))
+  (let [old-grid @grid] 
+    (doseq [y (range 0 h)
+            x (range 0 w)
+            :let [cell (geth x (geth y old-grid))]]
+      (send grid set-on-grid y x (calculate-iteration-on-cell old-grid y x cell)))))
+
+(defn print-grid [console grid] 
+  (let [i (atom 0)] 
+    (doseq [v grid]
+      (.write-at console  (swap! i inc) 0  (s/join  " " v)))))
 
 (defn -main  "I forget it" []
-  (do (t/start console) (t/set-bg-color console :black) (t/set-fg-color console :white))
-  (def main-thread (Thread. (fn [] (try 
-    (loop [] 
-      (iterate-game grid) 
-      (let [i (atom 0)] 
-        (doseq [v @grid]
-          (t/move-cursor console 0 (swap! i inc))
-          (t/put-string console (apply str v))))
-      (.flush console)
-      (when (Thread/interrupted) (throw (InterruptedException.)))
-      (Thread/sleep 600)
-      (t/move-cursor console 0 0)
-      (recur))
-  (catch InterruptedException e (t/stop console))))))
-  (do (.start main-thread) (t/get-key-blocking console) (.interrupt main-thread)))
+  (do 
+    (.background console "#000000") 
+    (.foreground console "#FFFFFF") 
+    (print-grid console @grid)
+    (.refresh console) (.refresh console)
+    (Thread/sleep 300))
+  (def main-thread (Thread. (fn [] 
+    (try 
+      (loop [] 
+        (iterate-game grid) 
+        (.clear-console console)
+        (await grid)
+        (print-grid console @grid)               
+        (when (Thread/interrupted) (throw (InterruptedException.)))
+        (.refresh console) (.refresh console)
+        (recur))
+    (catch InterruptedException e (shutdown-agents) (.quit console))))))
+  (do (.start main-thread) (.getch (:underlying-terminal console)) (.interrupt main-thread)))
